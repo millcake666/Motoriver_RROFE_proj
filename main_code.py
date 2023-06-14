@@ -8,30 +8,29 @@ import image
 import time
 import math
 
-#Настройка пинов для управления моторами хз как этрабтает
+# Настройка пинов для управления моторами хз как этрабтает
 timer = Timer(2, freq=100)
-motor_pin1 = timer.channel(3,Timer.PWM, pin = Pin('P4'))
-motor_pin2 = timer.channel(4,Timer.PWM, pin = Pin('P5'))
+motor_pin1 = timer.channel(3, Timer.PWM, pin=Pin('P4'))
+motor_pin2 = timer.channel(4, Timer.PWM, pin=Pin('P5'))
 motor_pin1.pulse_width_percent(0)
 motor_pin2.pulse_width_percent(0)
 
-
 # Кнопка
-button = Pin('P1' , Pin.OUT)
+button = Pin('P1', Pin.OUT)
 
 # настройка лазеров
 device_1_xshut = Pin('P3', Pin.OUT)
 i2c_1 = I2C(scl='P8', sda='P7')
 # Set this low to disable device 1
-#print("Setting up device 0")
+# print("Setting up device 0")
 device_1_xshut.value(0)
 tofl0 = setup_tofl_device(i2c_1, 20001, 10, 6)
-tofl0.set_address(0x31) # Right
-#print("Now setting up device 1")
+tofl0.set_address(0x31)  # Right
+# print("Now setting up device 1")
 # Re-enable device 1 - on the same bus
 device_1_xshut.value(1)
 utime.sleep_us(TBOOT)
-tofl1 = setup_tofl_device(i2c_1, 20001, 10, 6) # Left
+tofl1 = setup_tofl_device(i2c_1, 20001, 10, 6)  # Left
 
 # константы для управление мотором
 FORWARD = True
@@ -42,7 +41,7 @@ BREAK = True
 servo = Servo(3)
 CORP_ANGLE = [-17, 5]
 CORP_ANGLET = [-37, 25]
-#CORP_ANGLE = [-5, 25]
+# CORP_ANGLE = [-5, 25]
 KOEFF = 1
 TO_DEG = 180 / 3.14159265
 start = 0
@@ -51,7 +50,7 @@ start = 0
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QVGA)
-sensor.skip_frames(time = 2000)
+sensor.skip_frames(time=2000)
 ROI = (0, 120, 320, 240)
 trasholdBlue = ((10, 47, -59, 32, -51, -4))
 trasholdOrange = ((26, 64, 8, 54, 5, 61))
@@ -61,6 +60,8 @@ trasholdOrange = ((26, 64, 8, 54, 5, 61))
 
 
 a = []
+
+
 def filtL(value):
     a.append(value)
     if len(a) != 3:
@@ -79,8 +80,9 @@ def filtL(value):
         return buf
 
 
-
 b = []
+
+
 def filtR(value):
     b.append(value)
     if len(b) != 3:
@@ -101,7 +103,7 @@ def filtR(value):
 
 # Вперёд назад
 def go(direction, speed):
-    if direction :
+    if direction:
         motor_pin1.pulse_width_percent(0)
         motor_pin2.pulse_width_percent(speed)
     else:
@@ -111,7 +113,7 @@ def go(direction, speed):
 
 # Стоп
 def stop(var):
-    if var :
+    if var:
         motor_pin1.pulse_width_percent(100)
         motor_pin2.pulse_width_percent(100)
     else:
@@ -143,22 +145,24 @@ def set_angleT(angle):
 
 
 def ride_center():
-    go(FORWARD, 22) # запуск робота
-    corr_value = -((300 - tofl1.ping()) * KOEFF) # "Ошибка" для регулятора
+    go(FORWARD, 22)  # запуск робота
+    corr_value = -((300 - tofl1.ping()) * KOEFF)  # "Ошибка" для регулятора
     set_angle(corr_value)
+
 
 def ride_wallL(speed, dist):
     go(FORWARD, speed)
     tof_dist = tofl0.ping()
-    #print(tof_dist)
-    corr_angle = -((tof_dist - dist ) * KOEFF)
+    # print(tof_dist)
+    corr_angle = -((tof_dist - dist) * KOEFF)
     set_angleT(corr_angle)
+
 
 def ride_wallR(speed, dist):
     go(FORWARD, speed)
     tof_dist = tofl1.ping()
-    #print(tof_dist)
-    corr_angle = (tof_dist - dist ) * KOEFF
+    # print(tof_dist)
+    corr_angle = (tof_dist - dist) * KOEFF
     set_angleT(corr_angle)
 
 
@@ -183,30 +187,30 @@ while start == 0:
     go(FORWARD, 22)
 
     img = sensor.snapshot()
-    blobsB = img.find_blobs([trasholdBlue], area_threshold = 1500, merge = True,roi = ROI)
-    blobsO = img.find_blobs([trasholdOrange], area_threshold = 1500, merge = True,roi = ROI)
+    blobsB = img.find_blobs([trasholdBlue], area_threshold=1500, merge=True, roi=ROI)
+    blobsO = img.find_blobs([trasholdOrange], area_threshold=1500, merge=True, roi=ROI)
 
     max_sizeB = 0
     max_sizeO = 0
     max_blobB = []
     max_blobO = []
 
-    for blob in blobsB :
+    for blob in blobsB:
         if blob.pixels() > max_sizeB:
             max_sizeB = blob.pixels()
             max_blobB = blob
-    for blob in blobsO :
+    for blob in blobsO:
         if blob.pixels() > max_sizeO:
             max_sizeO = blob.pixels()
             max_blobO = blob
 
-    max_size = [max_sizeB , max_sizeO]
-    #if max_blobB and max_blobO and max(max_size) == max_sizeB:
+    max_size = [max_sizeB, max_sizeO]
+    # if max_blobB and max_blobO and max(max_size) == max_sizeB:
     if max_blobB != [] and max_blobO != [] and max_blobB.pixels() > max_blobO.pixels() and max_blobB.pixels() > 1000:
-        img.draw_rectangle(max_blobB.rect(), color = (0,0,255))
-        img.draw_cross(max_blobB.cx() , max_blobB.cy() , color = (0,0,255))
-        img.draw_rectangle(max_blobO.rect(), color = (255,0,0))
-        img.draw_cross(max_blobO.cx() , max_blobO.cy() , color = (255,0,0))
+        img.draw_rectangle(max_blobB.rect(), color=(0, 0, 255))
+        img.draw_cross(max_blobB.cx(), max_blobB.cy(), color=(0, 0, 255))
+        img.draw_rectangle(max_blobO.rect(), color=(255, 0, 0))
+        img.draw_cross(max_blobO.cx(), max_blobO.cy(), color=(255, 0, 0))
         print('Blue Pixels =>', max_blobB.pixels(), 'Orange Pixels =>', max_blobO.pixels())
         cflag = True
         if min(left_l) < 350:
@@ -227,8 +231,8 @@ while start == 0:
             position = 2
     elif max_blobB != [] and max_blobB.pixels() > 800:
         cflag = True
-        img.draw_rectangle(max_blobB.rect(), color = (0,0,255))
-        img.draw_cross(max_blobB.cx() , max_blobB.cy() , color = (0,0,255))
+        img.draw_rectangle(max_blobB.rect(), color=(0, 0, 255))
+        img.draw_cross(max_blobB.cx(), max_blobB.cy(), color=(0, 0, 255))
         if min(left_l) < 350:
             position = 1
         elif min(right_l) < 350:
@@ -238,8 +242,8 @@ while start == 0:
         start = 1
     elif max_blobO != [] and max_blobO.pixels() > 800:
         cflag = False
-        img.draw_rectangle(max_blobO.rect(), color = (255,0,0))
-        img.draw_cross(max_blobO.cx() , max_blobO.cy() , color = (255,0,0))
+        img.draw_rectangle(max_blobO.rect(), color=(255, 0, 0))
+        img.draw_cross(max_blobO.cx(), max_blobO.cy(), color=(255, 0, 0))
         start = 1
         if min(right_l) < 350:
             position = 1
@@ -247,14 +251,6 @@ while start == 0:
             position = 2
         else:
             position = 2
-
-
-
-
-
-
-
-
 
 stop(BREAK)
 print(1)
@@ -285,11 +281,11 @@ if cflag:
         turn += 1
     while turn < 13:
         img = sensor.snapshot()
-        blobs = img.find_blobs([trasholdBlue, trasholdOrange] , area_threshold = 1500 , merge = True,roi = ROI)
+        blobs = img.find_blobs([trasholdBlue, trasholdOrange], area_threshold=1500, merge=True, roi=ROI)
         max_blob = []
         max_size = 0
 
-        for blob in blobs :
+        for blob in blobs:
             if blob.pixels() > max_size:
                 max_size = blob.pixels()
                 max_blob = blob
@@ -322,10 +318,10 @@ else:
     KOEFF = 1
     while turn < 13:
         img = sensor.snapshot()
-        blobs = img.find_blobs([trasholdBlue, trasholdOrange] , area_threshold = 1500 , merge = True,roi = ROI)
+        blobs = img.find_blobs([trasholdBlue, trasholdOrange], area_threshold=1500, merge=True, roi=ROI)
         max_blob = []
         max_size = 0
-        for blob in blobs :
+        for blob in blobs:
             if blob.pixels() > max_size:
                 max_size = blob.pixels()
                 max_blob = blob
