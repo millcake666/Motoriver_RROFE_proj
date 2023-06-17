@@ -4,9 +4,11 @@ from machine import Pin, I2C
 from vl53l0x import setup_tofl_device, TBOOT
 import utime
 import sensor
+import image
 import time
+import math
 
-# Настройка пинов для управления моторами хз как этрабтает
+# Настройка пинов для управления моторами
 timer = Timer(2, freq=100)
 motor_pin1 = timer.channel(3, Timer.PWM, pin=Pin('P4'))
 motor_pin2 = timer.channel(4, Timer.PWM, pin=Pin('P5'))
@@ -37,7 +39,7 @@ FOLLOW = False
 BREAK = True
 # Настройка сервопривода
 servo = Servo(3)
-CORP_ANGLE = [-17, 5]
+CORP_ANGLE = [-27, 15]
 CORP_ANGLET = [-37, 25]
 # CORP_ANGLE = [-5, 25]
 KOEFF = 1
@@ -48,13 +50,55 @@ start = 0
 sensor.reset()
 sensor.set_pixformat(sensor.RGB565)
 sensor.set_framesize(sensor.QVGA)
-sensor.skip_frames(time=2000)
+sensor.set_contrast(3)
+sensor.set_saturation(3)
+sensor.set_auto_gain(False)
+sensor.set_auto_whitebal(False)
+sensor.skip_frames(time=1000)
 ROI = (0, 120, 320, 240)
 trasholdBlue = ((10, 47, -59, 32, -51, -4))
 trasholdOrange = ((26, 64, 8, 54, 5, 61))
+trasholdRed = ((11, 43, 27, 65, 3, 41))
+trasholdGreen = ((17, 32, -18, -6, -1, 14))
+
 
 # Функции для движения робота
 # Direction - bool , spped - int (0 - 100)
+
+
+def mark_reg(mark_blobsR, mark_blobsG):
+    max_sizeR = 0
+    max_sizeG = 0
+    max_blobR = []
+    max_blobG = []
+
+    # print("Red=>" , len(blobsR) , "Green=>" , len(blobsG) , "Blue=>" , len(blobsB))
+    for blob in mark_blobsR:
+        if blob.pixels() > max_sizeR:
+            max_sizeR = blob.pixels()
+            max_blobR = blob
+    for blob in mark_blobsG:
+        if blob.pixels() > max_sizeG:
+            max_sizeG = blob.pixels()
+            max_blobG = blob
+    max_size = [max_sizeR, max_sizeG]
+    if max(max_size) == max_sizeR:
+        # img.draw_rectangle(max_blobR.rect(), color = (255,0,0))
+        # img.draw_cross(max_blobR.cx() , max_blobR.cy() , color = (255,0,0))
+        set_angleT(90 - (160 - max_blobR.cx() * 1))
+    else:
+        # img.draw_rectangle(max_blobG.rect(), color = (0,255,0))
+        # img.draw_cross(max_blobG.cx() , max_blobG.cy() , color = (0,255,0))
+        if max_blobG.pixels() < 2500:
+            set_angle(-(90 - (160 - max_blobG.cx() * 1)))
+        else:
+            set_angleT(-90)
+            time.sleep_ms(400)
+            set_angleT(90)
+            time.sleep_ms(400)
+            set_angleT(-15)
+            time.sleep_ms(200)
+            set_angleT(-7)
 
 
 a = []
@@ -143,17 +187,22 @@ def set_angleT(angle):
 
 
 def ride_center():
-    go(FORWARD, 22)  # запуск робота
-    corr_value = -((300 - tofl1.ping()) * KOEFF)  # "Ошибка" для регулятора
+    go(FORWARD, 25)  # запуск робота
+    corr_value = -((tofl0.ping() - tofl1.ping()) * KOEFF)  # "Ошибка" для регулятора
     set_angle(corr_value)
 
 
 def ride_wallL(speed, dist):
     go(FORWARD, speed)
-    tof_dist = tofl0.ping()
-    # print(tof_dist)
-    corr_angle = -((tof_dist - dist) * KOEFF)
-    set_angleT(corr_angle)
+    img = sensor.snapshot()
+    blobsR = img.find_blobs([trasholdRed], area_threshold=300, merge=False)
+    blobsG = img.find_blobs([trasholdGreen], area_threshold=300, merge=False)
+    if blobsR != [] or blobsG != []:
+        mark_reg(blobsR, blobsG)
+    else:
+        tof_dist = tofl0.ping()
+        corr_angle = -((tof_dist - dist) * KOEFF)
+        set_angleT(corr_angle)
 
 
 def ride_wallR(speed, dist):
@@ -162,6 +211,7 @@ def ride_wallR(speed, dist):
     # print(tof_dist)
     corr_angle = (tof_dist - dist) * KOEFF
     set_angleT(corr_angle)
+    mark_reg()
 
 
 #################################################################################################
@@ -266,16 +316,16 @@ if cflag:
         time.sleep_ms(10000)
     elif position == 2:
         go(FORWARD, 25)
-        time.sleep_ms(1000)
+        time.sleep_ms(2000)
         stop(BREAK)
         time.sleep_ms(500)
         set_angleT(-90)
         go(FORWARD, 25)
-        time.sleep_ms(2500)
+        time.sleep_ms(2000)
         set_angleT(-7)
         stop(BREAK)
         go(FORWARD, 25)
-        time.sleep_ms(1000)
+        time.sleep_ms(200)
         turn += 1
     while turn < 13:
         img = sensor.snapshot()
@@ -288,7 +338,7 @@ if cflag:
                 max_size = blob.pixels()
                 max_blob = blob
 
-        ride_wallL(25, 200)
+        ride_wallL(25, 360)
         if max_blob != [] and (time.ticks_ms() - start_time) > 1850 and max_size > 1500:
             turn += 1
             start_time = time.ticks_ms()
@@ -302,7 +352,7 @@ else:
         time.sleep_ms(10000)
     elif position == 2:
         go(FORWARD, 25)
-        time.sleep_ms(500)
+        time.sleep_ms(1500)
         stop(BREAK)
         time.sleep_ms(500)
         set_angleT(90)
@@ -324,7 +374,7 @@ else:
                 max_size = blob.pixels()
                 max_blob = blob
 
-        ride_wallR(25, 250)
+        ride_wallR(25, 450)
         if max_blob != [] and (time.ticks_ms() - start_time) > 1850 and max_size > 1500:
             turn += 1
             start_time = time.ticks_ms()
